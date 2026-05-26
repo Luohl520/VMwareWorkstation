@@ -1,8 +1,8 @@
-name: Auto Sync Fork
+name: Safe Sync Fork
 
 on:
   schedule:
-    - cron: '0 17 * * *'
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,29 +10,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.1
+        with:
+          ref: master
+          fetch-depth: 0  # 获取完整历史
         
       - name: Setup Git
         run: |
-          git config user.name "GitHub Actions"
+          git config user.name "github-actions"
           git config user.email "actions@github.com"
-      
-      - name: Detect and Sync
+          
+      - name: Merge with unrelated histories
         run: |
           # 添加上游
-          git remote add upstream https://github.com/201853910/VMwareWorkstation.git
+          git remote add upstream https://github.com/201853910/VMwareWorkstation.git || true
           git fetch upstream
           
-          # 检测上游默认分支
-          UPSTREAM_DEFAULT=$(git remote show upstream | grep "HEAD branch" | cut -d ":" -f 2 | tr -d ' ')
-          echo "上游默认分支是: $UPSTREAM_DEFAULT"
+          # 检查是否有共同的祖先
+          COMMON_ANCESTOR=$(git merge-base master upstream/master 2>/dev/null || echo "none")
           
-          # 切换到上游的分支（如果本地没有就创建）
-          git checkout $UPSTREAM_DEFAULT || git checkout -b $UPSTREAM_DEFAULT
+          if [ "$COMMON_ANCESTOR" = "none" ]; then
+            echo "⚠️ 历史不相关，使用允许无关历史合并"
+            git checkout master
+            git merge upstream/master --allow-unrelated-histories --no-edit
+          else
+            echo "✅ 有共同历史，正常合并"
+            git checkout master
+            git merge upstream/master --no-edit
+          fi
           
-          # 合并
-          git merge upstream/$UPSTREAM_DEFAULT --no-edit
+          # 推送更新
+          git push origin master
           
-          # 推送
-          git push origin $UPSTREAM_DEFAULT
-          
-          echo "✅ 同步完成！"
+          echo "✅ 同步成功！"
