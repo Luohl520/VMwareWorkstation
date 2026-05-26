@@ -2,35 +2,37 @@ name: Auto Sync Fork
 
 on:
   schedule:
-    - cron: '0 17 * * *'  # 每天北京时间凌晨 1 点运行
-  workflow_dispatch:       # 可以手动触发
+    - cron: '0 17 * * *'
+  workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      # 步骤1：获取你的仓库代码（使用最新版本）
-      - name: Checkout
-        uses: actions/checkout@v4.2.1
+      - uses: actions/checkout@v4.2.1
         
-      # 步骤2：配置 Git
       - name: Setup Git
         run: |
-          git config --global user.name 'Auto Sync Bot'
-          git config --global user.email 'actions@github.com'
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
       
-      # 步骤3：添加上游仓库并合并
-      - name: Sync from Upstream
+      - name: Detect and Sync
         run: |
-          # 添加上游仓库地址（修改这里的 owner/repo）
+          # 添加上游
           git remote add upstream https://github.com/201853910/VMwareWorkstation.git
-          
-          # 获取上游更新
           git fetch upstream
           
-          # 合并到主分支（如果分支不是 main，改成你的分支名）
-          git checkout main
-          git merge upstream/main --no-edit
+          # 检测上游默认分支
+          UPSTREAM_DEFAULT=$(git remote show upstream | grep "HEAD branch" | cut -d ":" -f 2 | tr -d ' ')
+          echo "上游默认分支是: $UPSTREAM_DEFAULT"
           
-          # 推送到你的仓库
-          git push origin main
+          # 切换到上游的分支（如果本地没有就创建）
+          git checkout $UPSTREAM_DEFAULT || git checkout -b $UPSTREAM_DEFAULT
+          
+          # 合并
+          git merge upstream/$UPSTREAM_DEFAULT --no-edit
+          
+          # 推送
+          git push origin $UPSTREAM_DEFAULT
+          
+          echo "✅ 同步完成！"
